@@ -51,36 +51,39 @@ function getImagesFromFolder(folderPath) {
   });
 }
 
+async function uploadArrayBufferToSupabase(arrayBuffer, destinationPath) {
+  // console.log(arrayBuffer)
+  await supabaseInstance.storage.from(supabaseStorageBucketName).upload(destinationPath, arrayBuffer, {
+    cacheControl: '3600',
+    upsert: true,
+    contentType: 'image'
+  }).then(response => {
+    console.log(`File uploaded successfully: ${response.data}`);
+  })
+    .catch(error => {
+      console.error(`Error uploading file: ${error.message}`);
+    });
+  
+}
 const uploadImg = async (req, res) => {
   try {
-console.log("hello")
+    console.log("hello")
     console.log("file => ", req.file.buffer)
-    // const filespath = './public/temmp'
-    // console.log(req.files)
-    //   const file = req.files.path;
-      const { data, error } = await supabase.storage
-        .from('image') // Replace with your actual bucket name
-        .upload(`images/${file.originalname}`, file.buffer);
+    const file = req.file.buffer
+    const fileName = req.file.originalname+".jpg";
+    console.log(fileName)
 
-      if (error) {
-        throw error;
-      }
+    const data = await uploadArrayBufferToSupabase(file, fileName)
 
-      // Construct URLs
-      const imageUrl = `${supabaseUrl}/storage/v1/object/public/your_bucket_name/images/${file.originalname}`;
-      const previewUrl = imageUrl; 
-      const fileId = data.Key; 
-      res.json({
-        id: fileId,
-        imageUrl: imageUrl,
-        previewUrl: previewUrl
-      });
-    } catch (error) {
-      console.error('Error uploading file:', error.message);
-      res.status(500).json({ error: 'Failed to upload file' });
-    }
+
+    console.log("data => ", data)
+  } catch (error) {
+    console.error('Error uploading file:', error.message);
+    res.status(500).json({ error: 'Failed to upload file' });
   }
+}
 
-router.post('/upload',upload.single('file'), uploadImg );
+
+router.post('/upload', upload.single('file'), uploadImg);
 
 module.exports = router;
