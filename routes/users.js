@@ -1,13 +1,15 @@
 var express = require('express');
 var router = express.Router();
 const { supabaseInstance } = require("../supabase-db/index")
-const upload = require("./multer.middleware")
+// const upload = require("./multer.middleware")
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-
+// var fileupload = require("express-fileupload");
+const upload = multer();
 const supabaseStorageBucketName = "image";
 
+// router.use(fileupload());
 router.get("/", async (req, res) => {
   res.send("hello")
 })
@@ -51,10 +53,11 @@ function getImagesFromFolder(folderPath) {
 
 const uploadImg = async (req, res) => {
   try {
-    const filespath = './public/temmp'
-    console.log(req.files)
-      const file = req.files.path;
-      console.log("file => ", file)
+console.log("hello")
+    console.log("file => ", req.file.buffer)
+    // const filespath = './public/temmp'
+    // console.log(req.files)
+    //   const file = req.files.path;
       const { data, error } = await supabase.storage
         .from('image') // Replace with your actual bucket name
         .upload(`images/${file.originalname}`, file.buffer);
