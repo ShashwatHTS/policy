@@ -1,13 +1,10 @@
-var express = require('express');
-var router = express.Router();
+const express = require('express');
+const router = express.Router();
 const { supabaseInstance } = require("../supabase-db/index")
-const fs = require('fs');
-const path = require('path');
 const multer = require('multer');
 const ProgressBars = require('./progressBar');
 const upload = multer();
 const supabaseStorageBucketName = "image";
-// const loadingbar = require('./progressBar')
 
 const bars = new ProgressBars({
   title: 'Uploading',
@@ -17,7 +14,6 @@ const bars = new ProgressBars({
 })
 
 const total = 100;
-
 let completed2 = 0;
 
 function uploading() {
@@ -50,7 +46,6 @@ router.post("/name", async (req, res) => {
   res.send(data)
 });
 
-
 async function uploadArrayBufferToSupabase(arrayBuffer, destinationPath) {
   // console.log(arrayBuffer)
   const { data, error } = await supabaseInstance.storage.from(supabaseStorageBucketName).upload(destinationPath, arrayBuffer, {
@@ -64,48 +59,41 @@ async function uploadArrayBufferToSupabase(arrayBuffer, destinationPath) {
   return data
 }
 
-const getPublicUrl = (bucketName, fileName) => {
-  const { data, error } = supabaseInstance.storage.from(bucketName).getPublicUrl(fileName, 
-  )
-  if (error) {
-    throw error
-  }
-  return data;
-}
-
-
 const uploadImg = async (req, res) => {
   try {
-    // console.log("hello")
-    // console.log("file => ", req.file.buffer)
     const file = req.file.buffer
     const fileName = req.file.originalname;
-    console.log(fileName)
 
-    await uploadArrayBufferToSupabase(file, fileName)
-    // console.log("data => ", data)
+    console.log("fileName", fileName)
 
+    const data = await uploadArrayBufferToSupabase(file, fileName)
 
-    const publicUrl = await getPublicUrl(supabaseStorageBucketName, fileName)
+    if (data?.path) {
+      uploading()
+      const publickUrlresponse = supabaseInstance.storage.from(supabaseStorageBucketName).getPublicUrl(data?.path);
+      
+      console.log("Response ----------> ", publickUrlresponse?.data?.publicUrl)
 
-    const previewPublicUrl = await getPublicUrl(supabaseStorageBucketName, fileName)
-
-
-    const res = await supabaseInstance.from('images').insert({ url: publicUrl.publicUrl, preview_url: previewPublicUrl.publicUrl }).select()
-
-    console.log("res => ", res.data[0])
-    uploading()
-    // task.start()
-
-    res.send(res.data[0])
-
-
+      if (publickUrlresponse?.data?.publicUrl) {
+        const publicUrl = publickUrlresponse?.data?.publicUrl;
+      
+        const userData = await supabaseInstance.from('images').insert({ url: publicUrl, preview_url: publicUrl }).select("*").maybeSingle();
+        
+        res.status(200).json({
+          success: true,
+          data: userData.data,
+        });
+      } else {
+        throw publickUrlresponse.error || "Getting Error in PublicUrl"
+      }
+    } else {
+      throw error
+    }
   } catch (error) {
     console.error('Error uploading file:', error.message);
     res.status(500).json({ error: 'Failed to upload file' });
   }
 }
-
 
 router.post('/upload', upload.single('file'), uploadImg);
 
