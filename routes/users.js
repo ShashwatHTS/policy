@@ -1,13 +1,40 @@
 var express = require('express');
 var router = express.Router();
 const { supabaseInstance } = require("../supabase-db/index")
-// const upload = require("./multer.middleware")
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-// var fileupload = require("express-fileupload");
+const ProgressBars = require('./progressBar');
 const upload = multer();
 const supabaseStorageBucketName = "image";
+// const loadingbar = require('./progressBar')
+
+const bars = new ProgressBars({
+  title: 'Uploading',
+  display: ':text :bar :percent :completed/:total :time',
+  complete: '=',
+  incomplete: '-',
+})
+
+const total = 100;
+
+let completed2 = 0;
+
+function uploading() {
+  if (completed2 <= total) {
+
+    completed2 += 2
+    bars.render([
+      { completed: completed2, total, text: "file2" }
+    ]);
+
+    setTimeout(function () {
+      uploading();
+    }, 100)
+  }
+}
+
+// const task = new loadingbar(100)
 
 // router.use(fileupload());
 router.get("/", async (req, res) => {
@@ -23,60 +50,56 @@ router.post("/name", async (req, res) => {
   res.send(data)
 });
 
-const latestlistOfImage = (fpath) => {
-  const listOfFiles = getImagesFromFolder(fpath)
-    .then(imageFiles => {
-      // console.log('List of image files:', imageFiles);
-      return imageFiles;
-    })
-    .catch(error => {
-      console.error('Error reading image files:', error);
-    });
-  return listOfFiles
-}
-
-function getImagesFromFolder(folderPath) {
-  return new Promise((resolve, reject) => {
-    fs.readdir(folderPath, (err, files) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      const imageFiles = files.filter(file => {
-        const extname = path.extname(file).toLowerCase();
-        return ['.log'].includes(extname);
-      });
-      resolve(imageFiles);
-    });
-  });
-}
 
 async function uploadArrayBufferToSupabase(arrayBuffer, destinationPath) {
   // console.log(arrayBuffer)
-  await supabaseInstance.storage.from(supabaseStorageBucketName).upload(destinationPath, arrayBuffer, {
+  const { data, error } = await supabaseInstance.storage.from(supabaseStorageBucketName).upload(destinationPath, arrayBuffer, {
     cacheControl: '3600',
     upsert: true,
     contentType: 'image'
-  }).then(response => {
-    console.log(`File uploaded successfully: ${response.data}`);
   })
-    .catch(error => {
-      console.error(`Error uploading file: ${error.message}`);
-    });
-  
+  if (error) {
+    throw error
+  }
+  return data
 }
+
+const getPublicUrl = (bucketName, fileName) => {
+  const { data, error } = supabaseInstance.storage.from(bucketName).getPublicUrl(fileName, 
+  )
+  if (error) {
+    throw error
+  }
+  return data;
+}
+
+
 const uploadImg = async (req, res) => {
   try {
-    console.log("hello")
-    console.log("file => ", req.file.buffer)
+    // console.log("hello")
+    // console.log("file => ", req.file.buffer)
     const file = req.file.buffer
-    const fileName = req.file.originalname+".jpg";
+    const fileName = req.file.originalname;
     console.log(fileName)
 
-    const data = await uploadArrayBufferToSupabase(file, fileName)
+    await uploadArrayBufferToSupabase(file, fileName)
+    // console.log("data => ", data)
 
 
-    console.log("data => ", data)
+    const publicUrl = await getPublicUrl(supabaseStorageBucketName, fileName)
+
+    const previewPublicUrl = await getPublicUrl(supabaseStorageBucketName, fileName)
+
+
+    const res = await supabaseInstance.from('images').insert({ url: publicUrl.publicUrl, preview_url: previewPublicUrl.publicUrl }).select()
+
+    console.log("res => ", res.data[0])
+    uploading()
+    // task.start()
+
+    res.send(res.data[0])
+
+
   } catch (error) {
     console.error('Error uploading file:', error.message);
     res.status(500).json({ error: 'Failed to upload file' });
