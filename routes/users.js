@@ -62,6 +62,7 @@ async function uploadArrayBufferToSupabase(arrayBuffer, destinationPath) {
 const uploadImg = async (req, res) => {
   try {
     const file = req.file.buffer
+    console.log("file", file)
     let fileName = req.file.originalname;
     let date_time = new Date();
     let date = ("0" + date_time.getDate()).slice(-2);
