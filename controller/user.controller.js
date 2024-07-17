@@ -215,8 +215,6 @@ const { supabaseInstance } = require("../supabase-db/index")
 // }
 
 
-
-
 exports.uploadImage = async (req, res) => {
     try {
         const body = req.body;

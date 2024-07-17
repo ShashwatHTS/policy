@@ -1,68 +1,49 @@
 const express = require('express');
 const router = express.Router();
-const { supabaseInstance } = require("../supabase-db/index")
+const { supabaseInstance } = require("../supabase-db/index");
 const multer = require('multer');
-const ProgressBars = require('./progressBar');
+const ProgressBar = require('progress');
 const upload = multer();
 const supabaseStorageBucketName = "image";
 
-const bars = new ProgressBars({
-  title: 'Uploading',
-  display: ':text :bar :percent :completed/:total :time',
+// Initialize progress bar
+const progressBar = new ProgressBar('Uploading [:bar] :percent :etas', {
   complete: '=',
-  incomplete: '-',
-})
-
-const total = 100;
-let completed2 = 0;
-
-function uploading() {
-  if (completed2 <= total) {
-
-    completed2 += 2
-    bars.render([
-      { completed: completed2, total, text: "file2" }
-    ]);
-
-    setTimeout(function () {
-      uploading();
-    }, 100)
-  }
-}
-
-// const task = new loadingbar(100)
-
-// router.use(fileupload());
-router.get("/", async (req, res) => {
-  res.send("hello")
-})
-
-router.post("/name", async (req, res) => {
-  const { name } = req.body
-  const { data, error } = await supabaseInstance.from('name').insert({ name }).select()
-  if (error) {
-    throw error
-  }
-  res.send(data)
+  incomplete: ' ',
+  width: 30,
+  total: 100
 });
 
+// Function to upload file with progress tracking
 async function uploadArrayBufferToSupabase(arrayBuffer, destinationPath) {
-  // console.log(arrayBuffer)
-  const { data, error } = await supabaseInstance.storage.from(supabaseStorageBucketName).upload(destinationPath, arrayBuffer, {
-    cacheControl: '3600',
-    upsert: true,
-    contentType: 'image'
-  })
-  if (error) {
-    throw error
+  const totalSize = arrayBuffer.byteLength;
+  let uploadedSize = 0;
+  const chunkSize = 512 * 1024;
+
+  for (let i = 0; i < totalSize; i += chunkSize) {
+    const chunk = arrayBuffer.slice(i, i + chunkSize);
+    const { data, error } = await supabaseInstance.storage.from(supabaseStorageBucketName).upload(
+      `${destinationPath}-${i}`,
+      chunk,
+      {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: 'image'
+      }
+    );
+    if (error) {
+      throw error;
+    }
+    uploadedSize += chunk.byteLength;
+    const progress = uploadedSize / totalSize;
+    progressBar.update(progress);
   }
-  return data
+  return { path: destinationPath };
 }
 
 const uploadImg = async (req, res) => {
   try {
-    const file = req.file.buffer
-    console.log("file", file)
+    const file = req.file.buffer;
     let fileName = req.file.originalname;
     let date_time = new Date();
     let date = ("0" + date_time.getDate()).slice(-2);
@@ -71,34 +52,28 @@ const uploadImg = async (req, res) => {
     let hours = date_time.getHours();
     let minutes = date_time.getMinutes();
     let seconds = date_time.getSeconds();
-    console.log(year + "-" + month + "-" + date);
-    console.log(year + "-" + month + "-" + date + " " + hours + ":" + minutes + ":" + seconds);
-    fileName = `Date-${year}-${month}-${date}-Time-${hours}-${minutes}-${seconds}-${fileName}`
+    fileName = `Date-${year}-${month}-${date}-Time-${hours}-${minutes}-${seconds}-${fileName}`;
 
-    console.log("fileName", fileName)
-
-    const data = await uploadArrayBufferToSupabase(file, fileName)
+    const data = await uploadArrayBufferToSupabase(file, fileName);
+    console.log("data", data);
 
     if (data?.path) {
-      uploading()
-      const publickUrlresponse = supabaseInstance.storage.from(supabaseStorageBucketName).getPublicUrl(data?.path);
-      
-      console.log("Response ----------> ", publickUrlresponse?.data?.publicUrl)
-
-      if (publickUrlresponse?.data?.publicUrl) {
-        const publicUrl = publickUrlresponse?.data?.publicUrl;
-      
+      const publicUrlResponse = supabaseInstance.storage.from(supabaseStorageBucketName).getPublicUrl(data?.path);
+      if (publicUrlResponse?.data?.publicUrl) {
+        const publicUrl = publicUrlResponse?.data?.publicUrl;
         const userData = await supabaseInstance.from('images').insert({ url: publicUrl, preview_url: publicUrl }).select("*").maybeSingle();
-        
+
+        console.log("userData", userData);
+
         res.status(200).json({
           success: true,
           data: userData.data,
         });
       } else {
-        throw publickUrlresponse.error || "Getting Error in PublicUrl"
+        throw publicUrlResponse.error || "Error getting public URL";
       }
     } else {
-      throw error
+      throw new Error("Upload failed");
     }
   } catch (error) {
     console.error('Error uploading file:', error.message);
