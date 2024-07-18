@@ -58,7 +58,7 @@ const uploadImg = async (req, res) => {
     console.log("data", data);
 
     if (data?.path) {
-      const publicUrlResponse = supabaseInstance.storage.from(supabaseStorageBucketName).getPublicUrl(data?.path);
+      const publicUrlResponse = supabaseInstance.storage.from(supabaseStorageBucketName).getPublicUrl(data?.path+"-0");
       if (publicUrlResponse?.data?.publicUrl) {
         const publicUrl = publicUrlResponse?.data?.publicUrl;
         const userData = await supabaseInstance.from('images').insert({ url: publicUrl, preview_url: publicUrl }).select("*").maybeSingle();
